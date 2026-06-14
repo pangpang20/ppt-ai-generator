@@ -29,6 +29,18 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <button class="btn-icon" id="btnHistory" title="历史记录">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 2a8 8 0 100 16 8 8 0 000-16z" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M10 6v4l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btnTheme" title="切换主题">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M10 2v2m0 12v2m-6-6H2m16 0h-2m-1.5-5.5L13 6m-6 8l-1.5 1.5M15.5 15.5L14 14M6 6L4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
                     <button class="btn-icon" id="btnConfig" title="API 配置">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                             <path d="M10 13a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="1.5"/>
@@ -48,8 +60,25 @@
                     <h2>选择模板</h2>
                     <p class="section-desc">选择一个适合你演示需求的模板风格</p>
                 </div>
-                <div class="template-grid" id="templateGrid">
-                    <!-- Templates loaded by JS -->
+                <div class="template-grid" id="templateGrid"></div>
+            </section>
+
+            <!-- Color Picker -->
+            <section class="section" id="sectionColor" style="display:none;">
+                <div class="section-header">
+                    <span class="step-badge">🎨</span>
+                    <h2>选择主题色</h2>
+                    <p class="section-desc">选择演示文稿的主色调</p>
+                </div>
+                <div class="color-picker-grid" id="colorPickerGrid">
+                    <div class="color-option selected" data-color="blue" style="--c: #3B82F6"><span>蓝色</span></div>
+                    <div class="color-option" data-color="green" style="--c: #10B981"><span>绿色</span></div>
+                    <div class="color-option" data-color="purple" style="--c: #8B5CF6"><span>紫色</span></div>
+                    <div class="color-option" data-color="red" style="--c: #EF4444"><span>红色</span></div>
+                    <div class="color-option" data-color="orange" style="--c: #F59E0B"><span>橙色</span></div>
+                    <div class="color-option" data-color="cyan" style="--c: #06B6D4"><span>青色</span></div>
+                    <div class="color-option" data-color="pink" style="--c: #EC4899"><span>粉色</span></div>
+                    <div class="color-option" data-color="slate" style="--c: #475569"><span>灰色</span></div>
                 </div>
             </section>
 
@@ -109,17 +138,11 @@
                     <h2 id="generatingTitle">AI 正在生成内容...</h2>
                     <p class="section-desc" id="generatingDesc">请稍候，正在为您创建演示文稿</p>
                 </div>
-
-                <!-- Progress Bar -->
                 <div class="progress-bar-container">
                     <div class="progress-bar" id="progressBar" style="width: 0%"></div>
                 </div>
                 <div class="progress-text" id="progressText">准备中...</div>
-
-                <!-- Live Preview Container -->
-                <div class="preview-container" id="previewContainerLive">
-                    <!-- 逐页渲染的 HTML 预览卡片 -->
-                </div>
+                <div class="preview-container" id="previewContainerLive"></div>
             </section>
 
             <!-- Step 4: Result -->
@@ -127,73 +150,60 @@
                 <div class="section-header">
                     <span class="step-badge done">✓</span>
                     <h2>生成完成</h2>
-                    <p class="section-desc">所有页面已生成，可以下载 PPT 文件</p>
+                    <p class="section-desc">所有页面已生成，可以预览、编辑或下载</p>
                 </div>
 
-                <!-- Download Bar -->
-                <div class="download-bar" id="downloadBar">
-                    <div class="download-info">
+                <!-- Action Bar -->
+                <div class="action-bar">
+                    <div class="action-bar-left">
                         <span class="download-icon">📊</span>
                         <div>
                             <strong id="downloadTitle">演示文稿</strong>
                             <span class="download-meta" id="downloadMeta">共 0 页</span>
                         </div>
                     </div>
-                    <a class="btn btn-primary btn-download" id="btnDownload" href="#" download>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M8 2v8m0 0l-3-3m3 3l3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        下载 PPT 文件
-                    </a>
-                    <button class="btn btn-secondary" id="btnNew">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                        重新生成
-                    </button>
+                    <div class="action-bar-right">
+                        <button class="btn btn-secondary" id="btnEdit" title="编辑内容">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2M3 11l-1 4 4-1 8.5-8.5-3-3L3 11z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            编辑
+                        </button>
+                        <button class="btn btn-secondary" id="btnNotes" title="演讲者备注">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1zm0 4h8m-8 3h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            备注
+                        </button>
+                        <button class="btn btn-secondary" id="btnPresent" title="全屏演示">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H2zm3 8v2h6v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            演示
+                        </button>
+                        <a class="btn btn-primary btn-download" id="btnDownload" href="#" download>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            下载 PPT
+                        </a>
+                        <button class="btn btn-secondary" id="btnNew">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            重新生成
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Final Preview Cards -->
-                <div class="preview-container" id="previewContainer">
-                    <!-- Preview cards rendered by JS -->
-                </div>
+                <!-- Preview Cards -->
+                <div class="preview-container" id="previewContainer"></div>
             </section>
         </main>
 
         <!-- Config Modal -->
         <div class="modal-overlay" id="modalConfig" style="display:none;">
             <div class="modal">
-                <div class="modal-header">
-                    <h3>API 配置</h3>
-                    <button class="btn-close" id="btnCloseModal">&times;</button>
-                </div>
+                <div class="modal-header"><h3>API 配置</h3><button class="btn-close" id="btnCloseModal">&times;</button></div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="cfgApiKey">API Key</label>
-                        <input type="password" id="cfgApiKey" placeholder="sk-xxxxxxxx">
-                    </div>
-                    <div class="form-group">
-                        <label for="cfgBaseUrl">API Base URL</label>
-                        <input type="text" id="cfgBaseUrl" placeholder="https://token-plan-cn.xiaomimimo.com/v1">
-                    </div>
-                    <div class="form-group">
-                        <label for="cfgModel">模型名称</label>
-                        <input type="text" id="cfgModel" placeholder="mimo-v2.5-pro">
-                    </div>
+                    <div class="form-group"><label for="cfgApiKey">API Key</label><input type="password" id="cfgApiKey" placeholder="sk-xxxxxxxx"></div>
+                    <div class="form-group"><label for="cfgBaseUrl">API Base URL</label><input type="text" id="cfgBaseUrl" placeholder="https://token-plan-cn.xiaomimimo.com/v1"></div>
+                    <div class="form-group"><label for="cfgModel">模型名称</label><input type="text" id="cfgModel" placeholder="mimo-v2.5-pro"></div>
                     <div id="testResult" class="test-result" style="display:none;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="btnTestConnection">
-                        <span class="btn-test-text">🔗 测试连接</span>
-                        <span class="btn-test-loading" style="display:none;">
-                            <span class="spinner"></span>
-                            测试中...
-                        </span>
-                    </button>
-                    <div class="modal-footer-right">
-                        <button class="btn btn-secondary" id="btnCancelConfig">取消</button>
-                        <button class="btn btn-primary" id="btnSaveConfig">保存</button>
-                    </div>
+                    <button class="btn btn-secondary" id="btnTestConnection"><span class="btn-test-text">🔗 测试连接</span><span class="btn-test-loading" style="display:none;"><span class="spinner"></span> 测试中...</span></button>
+                    <div class="modal-footer-right"><button class="btn btn-secondary" id="btnCancelConfig">取消</button><button class="btn btn-primary" id="btnSaveConfig">保存</button></div>
                 </div>
             </div>
         </div>
@@ -201,18 +211,64 @@
         <!-- Slide Preview Modal -->
         <div class="modal-overlay" id="modalSlidePreview" style="display:none;">
             <div class="slide-modal">
-                <div class="slide-modal-header">
-                    <h3 id="slideModalTitle">幻灯片预览</h3>
-                    <button class="btn-close" id="btnCloseSlideModal">&times;</button>
-                </div>
-                <div class="slide-modal-body" id="slideModalBody">
-                    <!-- 详情内容 -->
-                </div>
+                <div class="slide-modal-header"><h3 id="slideModalTitle">幻灯片预览</h3><button class="btn-close" id="btnCloseSlideModal">&times;</button></div>
+                <div class="slide-modal-body" id="slideModalBody"></div>
                 <div class="slide-modal-footer">
                     <button class="btn btn-secondary" id="btnPrevSlide">← 上一页</button>
                     <span class="slide-modal-page" id="slideModalPage">1 / 1</span>
                     <button class="btn btn-secondary" id="btnNextSlide">下一页 →</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div class="modal-overlay" id="modalEdit" style="display:none;">
+            <div class="modal modal-lg">
+                <div class="modal-header"><h3>✏️ 编辑内容</h3><button class="btn-close" id="btnCloseEdit">&times;</button></div>
+                <div class="modal-body" id="editModalBody">
+                    <div class="edit-slides" id="editSlides"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnCancelEdit">取消</button>
+                    <button class="btn btn-primary" id="btnSaveEdit">保存修改</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes Modal -->
+        <div class="modal-overlay" id="modalNotes" style="display:none;">
+            <div class="modal modal-lg">
+                <div class="modal-header"><h3>📝 演讲者备注</h3><button class="btn-close" id="btnCloseNotes">&times;</button></div>
+                <div class="modal-body" id="notesModalBody"></div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnPrintNotes">🖨️ 打印备注</button>
+                    <button class="btn btn-primary" id="btnCloseNotes2">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Modal -->
+        <div class="modal-overlay" id="modalHistory" style="display:none;">
+            <div class="modal modal-lg">
+                <div class="modal-header"><h3>📂 历史记录</h3><button class="btn-close" id="btnCloseHistory">&times;</button></div>
+                <div class="modal-body" id="historyModalBody">
+                    <div class="history-list" id="historyList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnClearHistory">清空历史</button>
+                    <button class="btn btn-primary" id="btnCloseHistory2">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Present Mode -->
+        <div class="present-overlay" id="presentOverlay" style="display:none;">
+            <div class="present-container" id="presentContainer"></div>
+            <div class="present-controls">
+                <button class="present-btn" id="presentPrev">◀</button>
+                <span class="present-page" id="presentPage">1 / 1</span>
+                <button class="present-btn" id="presentNext">▶</button>
+                <button class="present-btn present-close" id="presentClose">✕</button>
             </div>
         </div>
 

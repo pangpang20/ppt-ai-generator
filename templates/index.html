@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPT AI Generator - 智能演示文稿生成器</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                            <rect x="2" y="4" width="28" height="24" rx="3" stroke="currentColor" stroke-width="2"/>
+                            <rect x="6" y="8" width="20" height="4" rx="1" fill="currentColor" opacity="0.3"/>
+                            <rect x="6" y="14" width="14" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+                            <rect x="6" y="18" width="18" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+                            <rect x="6" y="22" width="10" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+                            <circle cx="26" cy="6" r="4" fill="#3B82F6"/>
+                            <path d="M24.5 6L25.5 7L27.5 5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>PPT AI Generator</h1>
+                        <span>智能演示文稿生成器 · Powered by MiMo</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-icon" id="btnConfig" title="API 配置">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 13a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M17.4 12.3a1.5 1.5 0 00.3 1.65l.05.06a1.82 1.82 0 01-1.29 3.11 1.82 1.82 0 01-1.29-.53l-.06-.06a1.5 1.5 0 00-1.65-.3 1.5 1.5 0 00-.91 1.37v.17a1.82 1.82 0 01-3.64 0v-.09A1.5 1.5 0 008 16.35a1.5 1.5 0 00-1.65.3l-.06.06a1.82 1.82 0 01-2.58-2.58l.06-.06a1.5 1.5 0 00.3-1.65 1.5 1.5 0 00-1.37-.91h-.17a1.82 1.82 0 010-3.64h.09A1.5 1.5 0 003.65 8a1.5 1.5 0 00-.3-1.65l-.06-.06a1.82 1.82 0 012.58-2.58l.06.06a1.5 1.5 0 001.65.3h.07a1.5 1.5 0 00.91-1.37v-.17a1.82 1.82 0 013.64 0v.09a1.5 1.5 0 00.91 1.37 1.5 1.5 0 001.65-.3l.06-.06a1.82 1.82 0 012.58 2.58l-.06.06a1.5 1.5 0 00-.3 1.65v.07a1.5 1.5 0 001.37.91h.17a1.82 1.82 0 010 3.64h-.09a1.5 1.5 0 00-1.37.91z" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Step 1: Template Selection -->
+            <section class="section" id="sectionTemplate">
+                <div class="section-header">
+                    <span class="step-badge">1</span>
+                    <h2>选择模板</h2>
+                    <p class="section-desc">选择一个适合你演示需求的模板风格</p>
+                </div>
+                <div class="template-grid" id="templateGrid">
+                    <!-- Templates loaded by JS -->
+                </div>
+            </section>
+
+            <!-- Step 2: Input Form -->
+            <section class="section" id="sectionInput">
+                <div class="section-header">
+                    <span class="step-badge">2</span>
+                    <h2>填写信息</h2>
+                    <p class="section-desc">输入主题和相关信息，AI 将为你生成演示文稿</p>
+                </div>
+                <div class="form-card">
+                    <div class="form-group">
+                        <label for="inputTopic">
+                            <span class="label-icon">📝</span>
+                            演示主题 <span class="required">*</span>
+                        </label>
+                        <input type="text" id="inputTopic" placeholder="例如：人工智能在教育中的应用、2024年度营销策略、新产品发布方案..." maxlength="200">
+                        <span class="input-hint">输入你想要演示的核心主题或关键词</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="inputAudience">
+                                <span class="label-icon">👥</span>
+                                目标受众
+                            </label>
+                            <input type="text" id="inputAudience" placeholder="例如：教育工作者、企业管理层、投资人..." maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="inputExtra">
+                                <span class="label-icon">💡</span>
+                                额外要求
+                            </label>
+                            <input type="text" id="inputExtra" placeholder="例如：重点关注K-12教育、包含数据图表..." maxlength="300">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary btn-generate" id="btnGenerate">
+                            <span class="btn-icon-left">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <path d="M9 1.5L11.3 6.2L16.5 6.9L12.75 10.5L13.6 15.7L9 13.3L4.4 15.7L5.25 10.5L1.5 6.9L6.7 6.2L9 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </span>
+                            <span class="btn-text">AI 生成演示文稿</span>
+                            <span class="btn-loading" style="display:none;">
+                                <span class="spinner"></span>
+                                生成中...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Result Preview -->
+            <section class="section" id="sectionResult" style="display:none;">
+                <div class="section-header">
+                    <span class="step-badge done">✓</span>
+                    <h2>生成结果</h2>
+                    <p class="section-desc" id="resultDesc">演示文稿已生成完成</p>
+                </div>
+
+                <!-- Download Bar -->
+                <div class="download-bar" id="downloadBar">
+                    <div class="download-info">
+                        <span class="download-icon">📊</span>
+                        <div>
+                            <strong id="downloadTitle">演示文稿</strong>
+                            <span class="download-meta" id="downloadMeta">共 0 页</span>
+                        </div>
+                    </div>
+                    <a class="btn btn-primary btn-download" id="btnDownload" href="#" download>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 2v8m0 0l-3-3m3 3l3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        下载 PPT 文件
+                    </a>
+                    <button class="btn btn-secondary" id="btnNew">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        重新生成
+                    </button>
+                </div>
+
+                <!-- Slide Preview Cards -->
+                <div class="preview-container" id="previewContainer">
+                    <!-- Preview cards rendered by JS -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Config Modal -->
+        <div class="modal-overlay" id="modalConfig" style="display:none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>API 配置</h3>
+                    <button class="btn-close" id="btnCloseModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="cfgApiKey">API Key</label>
+                        <input type="password" id="cfgApiKey" placeholder="sk-xxxxxxxx">
+                    </div>
+                    <div class="form-group">
+                        <label for="cfgBaseUrl">API Base URL</label>
+                        <input type="text" id="cfgBaseUrl" placeholder="https://token-plan-cn.xiaomimimo.com/v1">
+                    </div>
+                    <div class="form-group">
+                        <label for="cfgModel">模型名称</label>
+                        <input type="text" id="cfgModel" placeholder="mimo-v2.5-pro">
+                    </div>
+                    <div id="testResult" class="test-result" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnTestConnection">
+                        <span class="btn-test-text">🔗 测试连接</span>
+                        <span class="btn-test-loading" style="display:none;">
+                            <span class="spinner"></span>
+                            测试中...
+                        </span>
+                    </button>
+                    <div class="modal-footer-right">
+                        <button class="btn btn-secondary" id="btnCancelConfig">取消</button>
+                        <button class="btn btn-primary" id="btnSaveConfig">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

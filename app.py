@@ -219,6 +219,7 @@ def index():
 @app.route("/api/templates", methods=["GET"])
 def get_templates():
     """获取所有模板列表"""
+    logger.info("[模板] 获取模板列表")
     template_list = []
     for t in TEMPLATES:
         template_list.append({
@@ -228,6 +229,7 @@ def get_templates():
             "icon": t["icon"],
             "description": t["description"],
         })
+    logger.info(f"[模板] 返回 {len(template_list)} 个模板")
     return jsonify({"success": True, "templates": template_list})
 
 
@@ -743,8 +745,11 @@ def preview():
     """
     仅生成预览（不调用AI，不生成PPT），用于测试前端展示
     """
+    logger.info("[预览] 收到预览请求")
     body = request.get_json()
     slides_data = body.get("slides_data", {})
+    slide_count = len(slides_data.get("slides", []))
+    logger.info(f"[预览] 返回 {slide_count} 页数据")
     return jsonify({"success": True, "data": slides_data})
 
 
@@ -783,24 +788,33 @@ def download(filename):
 def ai_expand():
     """AI 内容扩展：为某页补充更多内容"""
     import config as cfg
+    logger.info("=" * 50)
+    logger.info("[AI扩展] 收到请求")
     body = request.get_json()
     title = body.get("title", "")
     content = body.get("content", [])
+    logger.info(f"[AI扩展] 标题: {title}, 当前内容数: {len(content)}")
     prompt = f"请为以下PPT页面内容补充更多详细信息，返回5-8个要点的JSON数组：\n标题：{title}\n当前内容：{json.dumps(content, ensure_ascii=False)}\n只返回JSON数组格式，例如：[\"要点1\",\"要点2\"]"
 
     try:
         url = f"{cfg.MIMO_BASE_URL}/chat/completions"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
         payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 1000}
+        logger.info(f"[AI扩展] 调用AI: {url}")
         resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        logger.info(f"[AI扩展] 响应状态: {resp.status_code}")
         if resp.status_code == 200:
             reply = resp.json()["choices"][0]["message"]["content"]
+            logger.debug(f"[AI扩展] AI回复: {reply[:200]}")
             match = re.search(r'\[.*\]', reply, re.DOTALL)
             if match:
                 new_content = json.loads(match.group())
+                logger.info(f"[AI扩展] ✅ 扩展成功, 新内容数: {len(new_content)}")
                 return jsonify({"success": True, "content": new_content})
+        logger.warning(f"[AI扩展] ❌ 扩展失败")
         return jsonify({"success": False, "error": "AI 扩展失败"})
     except Exception as e:
+        logger.error(f"[AI扩展] ❌ 错误: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -808,23 +822,32 @@ def ai_expand():
 def ai_simplify():
     """AI 内容精简：精简长内容为核心要点"""
     import config as cfg
+    logger.info("=" * 50)
+    logger.info("[AI精简] 收到请求")
     body = request.get_json()
     content = body.get("content", [])
+    logger.info(f"[AI精简] 当前内容数: {len(content)}")
     prompt = f"请将以下PPT内容精简为3-5个核心要点，返回JSON数组：\n{json.dumps(content, ensure_ascii=False)}\n只返回JSON数组。"
 
     try:
         url = f"{cfg.MIMO_BASE_URL}/chat/completions"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
         payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.5, "max_tokens": 500}
+        logger.info(f"[AI精简] 调用AI: {url}")
         resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        logger.info(f"[AI精简] 响应状态: {resp.status_code}")
         if resp.status_code == 200:
             reply = resp.json()["choices"][0]["message"]["content"]
+            logger.debug(f"[AI精简] AI回复: {reply[:200]}")
             match = re.search(r'\[.*\]', reply, re.DOTALL)
             if match:
                 new_content = json.loads(match.group())
+                logger.info(f"[AI精简] ✅ 精简成功, 新内容数: {len(new_content)}")
                 return jsonify({"success": True, "content": new_content})
+        logger.warning(f"[AI精简] ❌ 精简失败")
         return jsonify({"success": False, "error": "AI 精简失败"})
     except Exception as e:
+        logger.error(f"[AI精简] ❌ 错误: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -832,10 +855,14 @@ def ai_simplify():
 def ai_translate():
     """AI 翻译：将内容翻译为指定语言"""
     import config as cfg
+    logger.info("=" * 50)
+    logger.info("[AI翻译] 收到请求")
     body = request.get_json()
     slides_data = body.get("slides_data", {})
     target_lang = body.get("target_lang", "en")
     lang_names = {"en": "英文", "zh": "中文", "ja": "日文", "ko": "韩文"}
+    slide_count = len(slides_data.get("slides", []))
+    logger.info(f"[AI翻译] 目标语言: {target_lang}({lang_names.get(target_lang, '?')}), 页数: {slide_count}")
 
     prompt = f"请将以下PPT内容翻译为{lang_names.get(target_lang, target_lang)}，保持JSON格式不变：\n{json.dumps(slides_data, ensure_ascii=False)}"
 
@@ -843,15 +870,21 @@ def ai_translate():
         url = f"{cfg.MIMO_BASE_URL}/chat/completions"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
         payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "max_tokens": 4096}
+        logger.info(f"[AI翻译] 调用AI: {url}")
         resp = requests.post(url, headers=headers, json=payload, timeout=120)
+        logger.info(f"[AI翻译] 响应状态: {resp.status_code}")
         if resp.status_code == 200:
             reply = resp.json()["choices"][0]["message"]["content"]
+            logger.debug(f"[AI翻译] AI回复长度: {len(reply)}")
             match = re.search(r'\{[\s\S]*\}', reply)
             if match:
                 translated = json.loads(match.group())
+                logger.info(f"[AI翻译] ✅ 翻译成功")
                 return jsonify({"success": True, "data": translated})
+        logger.warning(f"[AI翻译] ❌ 翻译失败")
         return jsonify({"success": False, "error": "翻译失败"})
     except Exception as e:
+        logger.error(f"[AI翻译] ❌ 错误: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -859,34 +892,46 @@ def ai_translate():
 def ai_suggest_image():
     """AI 配图建议：为每页推荐配图关键词"""
     import config as cfg
+    logger.info("=" * 50)
+    logger.info("[AI配图] 收到请求")
     body = request.get_json()
     title = body.get("title", "")
     content = body.get("content", [])
+    logger.info(f"[AI配图] 标题: {title}, 内容数: {len(content)}")
     prompt = f"为以下PPT页面推荐3个配图搜索关键词（用于Unsplash/Pexels），返回JSON数组：\n标题：{title}\n内容：{json.dumps(content[:3], ensure_ascii=False)}\n只返回JSON数组，例如：[\"business meeting\",\"data chart\",\"teamwork\"]"
 
     try:
         url = f"{cfg.MIMO_BASE_URL}/chat/completions"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
         payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 200}
+        logger.info(f"[AI配图] 调用AI: {url}")
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        logger.info(f"[AI配图] 响应状态: {resp.status_code}")
         if resp.status_code == 200:
             reply = resp.json()["choices"][0]["message"]["content"]
+            logger.debug(f"[AI配图] AI回复: {reply[:200]}")
             match = re.search(r'\[.*\]', reply, re.DOTALL)
             if match:
                 keywords = json.loads(match.group())
+                logger.info(f"[AI配图] ✅ 建议成功: {keywords}")
                 return jsonify({"success": True, "keywords": keywords})
+        logger.warning(f"[AI配图] ❌ 建议失败")
         return jsonify({"success": False, "error": "建议生成失败"})
     except Exception as e:
+        logger.error(f"[AI配图] ❌ 错误: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 
 @app.route("/api/export-markdown", methods=["POST"])
 def export_markdown():
     """导出为 Markdown 格式"""
+    logger.info("=" * 50)
+    logger.info("[导出MD] 收到请求")
     body = request.get_json()
     slides_data = body.get("slides_data", {})
     title = slides_data.get("title", "演示文稿")
     slides = slides_data.get("slides", [])
+    logger.info(f"[导出MD] 标题: {title}, 页数: {len(slides)}")
 
     md = f"# {title}\n\n"
     for i, slide in enumerate(slides):
@@ -897,16 +942,20 @@ def export_markdown():
             md += f"\n> **备注:** {slide['notes']}\n"
         md += "\n---\n\n"
 
+    logger.info(f"[导出MD] ✅ 导出成功, 长度: {len(md)} 字符")
     return jsonify({"success": True, "markdown": md})
 
 
 @app.route("/api/export-text", methods=["POST"])
 def export_text():
     """导出为纯文本格式"""
+    logger.info("=" * 50)
+    logger.info("[导出TXT] 收到请求")
     body = request.get_json()
     slides_data = body.get("slides_data", {})
     title = slides_data.get("title", "演示文稿")
     slides = slides_data.get("slides", [])
+    logger.info(f"[导出TXT] 标题: {title}, 页数: {len(slides)}")
 
     text = f"{title}\n{'='*40}\n\n"
     for i, slide in enumerate(slides):
@@ -917,6 +966,7 @@ def export_text():
             text += f"  [备注] {slide['notes']}\n"
         text += "\n"
 
+    logger.info(f"[导出TXT] ✅ 导出成功, 长度: {len(text)} 字符")
     return jsonify({"success": True, "text": text})
 
 

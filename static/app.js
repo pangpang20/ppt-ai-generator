@@ -150,7 +150,7 @@ function renderTitleSlideHTML(title, totalSlides) {
     return `
     <div class="slide-preview" style="animation-delay: 0s">
         <div class="slide-aspect">
-            <div class="slide-content slide-title-page">
+            <div class="slide-content slide-title-page" onclick="openSlideModal(0)" style="cursor:pointer" title="点击查看详情">
                 <div class="slide-decorations">
                     <div class="deco-circle"></div>
                     <div class="deco-circle"></div>
@@ -161,7 +161,7 @@ function renderTitleSlideHTML(title, totalSlides) {
         </div>
         <div class="slide-status done">
             <span class="status-dot"></span>
-            标题页
+            标题页 · 点击预览详情
         </div>
     </div>`;
 }
@@ -174,7 +174,7 @@ function renderTocSlideHTML(slides) {
     return `
     <div class="slide-preview" style="animation-delay: 0.1s">
         <div class="slide-aspect">
-            <div class="slide-content slide-toc-page" style="padding:0">
+            <div class="slide-content slide-toc-page" style="padding:0;cursor:pointer" onclick="openSlideModal(1)" title="点击查看详情">
                 <div class="toc-left">
                     <h3>目录</h3>
                     <span>CONTENTS</span>
@@ -184,7 +184,7 @@ function renderTocSlideHTML(slides) {
         </div>
         <div class="slide-status done">
             <span class="status-dot"></span>
-            目录页
+            目录页 · 点击预览详情
         </div>
     </div>`;
 }
@@ -204,9 +204,14 @@ function renderContentSlideHTML(slideData, index, totalSlides) {
     <div class="slide-preview" id="slide-preview-${index}" style="position:relative">
         <div class="slide-aspect">
             <div class="slide-content slide-content-page">
-                <div class="slide-header">
+                <div class="slide-header slide-header-clickable" onclick="openSlideModal(${index - 1 + 1})" title="点击查看详情">
                     <div class="slide-num-badge">${index}</div>
                     <div class="slide-title">${escapeHtml(slideData.title)}</div>
+                    <div class="slide-preview-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M6 12l4-4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
                 </div>
                 <div class="slide-points">${points}</div>
                 ${moreHint}
@@ -215,9 +220,8 @@ function renderContentSlideHTML(slideData, index, totalSlides) {
         </div>
         <div class="slide-status">
             <span class="status-dot"></span>
-            第 ${index} 页
+            第 ${index} 页 · 点击标题预览详情
         </div>
-        <div class="click-hint">🔍 点击查看详情</div>
     </div>`;
 }
 

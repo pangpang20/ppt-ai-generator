@@ -1,133 +1,44 @@
-# PPT AI Generator - Implementation Plan
+# PPT 增强计划 - 更丰富的视觉元素
 
-## Overview
-Build a web application that uses AI (Xiaomi MiMo) to generate PPT presentations from 6 professional templates based on user-provided keywords/prompts.
+## 目标
+让生成的 PPT 更专业、更有视觉冲击力，包含图标、卡片式布局、装饰元素等。
 
-## Architecture
+## 改进内容
 
-```
-Frontend (HTML/CSS/JS)  →  Flask Backend  →  MiMo API (AI)
-                              ↓
-                         python-pptx → .pptx file → Download
-```
+### 1. 标题页增强
+- 添加装饰性几何图形（圆形、圆角矩形）
+- 添加图标占位区域
+- 更丰富的层次感（渐变色块叠加）
 
-## Tech Stack
-- **Frontend**: Vanilla HTML + CSS + JavaScript (single page, no framework)
-- **Backend**: Flask (Python 3.7, already installed)
-- **AI**: Xiaomi MiMo API (OpenAI-compatible endpoint)
-- **PPT Generation**: python-pptx (needs `pip install`)
-- **Dependencies**: requests (already installed)
+### 2. 内容页增强
+- 每个要点前用**彩色图标形状**替代纯圆点（圆角方块、菱形、箭头等）
+- 内容区域使用**卡片式布局**（带浅色背景的圆角矩形）
+- 标题左侧添加**图标色块**
+- 页面底部添加装饰性元素
 
-## Directory Structure
-```
-/opt/cyl/ppt_gen/
-├── app.py                  # Flask backend, all API routes
-├── config.py               # MiMo API configuration (token, endpoint, model)
-├── ppt_generator.py        # python-pptx PPT generation logic
-├── templates_config.py     # 6 template definitions (prompts, metadata)
-├── requirements.txt        # Python dependencies
-├── static/
-│   ├── style.css           # All styling
-│   └── app.js              # Frontend logic
-├── templates/
-│   └── index.html          # Main HTML page
-└── output/                 # Generated PPT files (temp)
-```
+### 3. 新增：目录页
+- 在标题页后自动生成目录页
+- 列出所有幻灯片标题
+- 使用编号+标题的布局
 
-## Implementation Steps
+### 4. 新增：分隔页
+- 在重要章节之间添加分隔页
+- 使用大号数字 + 章节标题
 
-### Step 1: Install Dependencies
-- `pip install python-pptx`
+### 5. 结束页增强
+- 添加联系方式占位区域
+- 更丰富的装饰元素
 
-### Step 2: Backend - Config (`config.py`)
-- MiMo API base URL, API key, model name
-- Default settings (temperature, max_tokens)
-- Easy to modify via environment variables or direct edit
+### 6. 图标系统
+- 使用 MSO_SHAPE 创建简单图标：
+  - 箭头 → MSO_SHAPE.RIGHT_ARROW
+  - 菱形 → MSO_SHAPE.DIAMOND
+  - 五角星 → MSO_SHAPE.STAR_5_POINT
+  - 心形 → MSO_SHAPE.HEART
+  - 闪电 → MSO_SHAPE.LIGHTNING_BOLT
+  - 对勾 → MSO_SHAPE.CHECK_MARK
+  - 圆形 → MSO_SHAPE.OVAL
+  - 旗帜 → MSO_SHAPE.FLAG
 
-### Step 3: Backend - Template Definitions (`templates_config.py`)
-- Define 6 templates with:
-  - `id`, `name_zh`, `name_en`, `description`
-  - `system_prompt`: instructions for the AI
-  - `user_prompt_template`: with `[topic]` and `[audience]` placeholders
-  - `output_schema`: expected JSON structure from AI
-
-### Step 4: Backend - PPT Generator (`ppt_generator.py`)
-- Function: `generate_ppt(slides_data, template_id, output_path)`
-- Uses python-pptx to create professional slides:
-  - Title slide with topic
-  - Content slides with bullet points
-  - Summary/conclusion slide
-- Professional styling: color scheme, fonts, layouts
-- Different visual styles per template
-
-### Step 5: Backend - Flask App (`app.py`)
-Routes:
-- `GET /` → serve index.html
-- `GET /api/templates` → list all 6 templates
-- `POST /api/generate` → main generation endpoint
-  - Input: `{ template_id, topic, audience?, extra_instructions? }`
-  - Process: call MiMo API → parse response → generate PPT
-  - Output: `{ success, download_url, preview_slides }`
-- `GET /api/download/<filename>` → serve generated .pptx file
-
-### Step 6: Frontend - HTML (`templates/index.html`)
-- Header with title
-- Template selection grid (6 cards with icons)
-- Input form: topic, audience (optional), extra instructions
-- Generate button with loading state
-- Preview area for generated slide content
-- Download button
-
-### Step 7: Frontend - CSS (`static/style.css`)
-- Modern, clean design
-- Responsive layout
-- Card-based template selection
-- Loading animations
-- Professional color scheme
-
-### Step 8: Frontend - JS (`static/app.js`)
-- Fetch and render templates
-- Form submission and API call
-- Loading state management
-- Preview rendering
-- Download handling
-
-## AI Integration Details
-
-MiMo API call format (OpenAI-compatible):
-```python
-POST {BASE_URL}/v1/chat/completions
-Headers: Authorization: Bearer {API_KEY}
-Body: {
-    "model": "mimo-v2.5-pro",
-    "messages": [
-        {"role": "system", "content": "..."},
-        {"role": "user", "content": "..."}
-    ],
-    "temperature": 0.7,
-    "max_tokens": 4096
-}
-```
-
-AI is asked to return structured JSON:
-```json
-{
-    "title": "演示标题",
-    "slides": [
-        {
-            "slide_number": 1,
-            "title": "页标题",
-            "content": ["要点1", "要点2", "要点3"],
-            "notes": "演讲者备注"
-        }
-    ]
-}
-```
-
-## PPT Styling
-- 16:9 aspect ratio
-- Professional color palette (dark blue + accent colors)
-- Clean typography
-- Consistent layout across slides
-- Title slide with gradient background
-- Content slides with structured bullet points
+## 文件修改
+- `ppt_generator.py` — 主要修改文件

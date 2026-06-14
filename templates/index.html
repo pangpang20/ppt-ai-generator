@@ -102,12 +102,32 @@
                 </div>
             </section>
 
-            <!-- Step 3: Result Preview -->
+            <!-- Step 3: Generating Progress -->
+            <section class="section" id="sectionGenerating" style="display:none;">
+                <div class="section-header">
+                    <span class="step-badge spinning">⏳</span>
+                    <h2 id="generatingTitle">AI 正在生成内容...</h2>
+                    <p class="section-desc" id="generatingDesc">请稍候，正在为您创建演示文稿</p>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="progress-text" id="progressText">准备中...</div>
+
+                <!-- Live Preview Container -->
+                <div class="preview-container" id="previewContainerLive">
+                    <!-- 逐页渲染的 HTML 预览卡片 -->
+                </div>
+            </section>
+
+            <!-- Step 4: Result -->
             <section class="section" id="sectionResult" style="display:none;">
                 <div class="section-header">
                     <span class="step-badge done">✓</span>
-                    <h2>生成结果</h2>
-                    <p class="section-desc" id="resultDesc">演示文稿已生成完成</p>
+                    <h2>生成完成</h2>
+                    <p class="section-desc">所有页面已生成，可以下载 PPT 文件</p>
                 </div>
 
                 <!-- Download Bar -->
@@ -133,7 +153,7 @@
                     </button>
                 </div>
 
-                <!-- Slide Preview Cards -->
+                <!-- Final Preview Cards -->
                 <div class="preview-container" id="previewContainer">
                     <!-- Preview cards rendered by JS -->
                 </div>

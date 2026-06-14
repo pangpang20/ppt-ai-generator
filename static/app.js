@@ -1,5 +1,6 @@
 /**
  * PPT AI Generator - Frontend Logic
+ * 逐页生成 + HTML 预览版
  */
 
 // ============================================
@@ -8,6 +9,7 @@
 let selectedTemplate = null;
 let templates = [];
 let isGenerating = false;
+let generatedSlidesData = null;
 
 // Template icon map
 const TEMPLATE_ICONS = {
@@ -29,6 +31,9 @@ const TEMPLATE_COLORS = {
     clarity: '#F43F5E',
 };
 
+// 要点图标 SVG
+const POINT_SVG = `<svg viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 // ============================================
 // DOM Elements
 // ============================================
@@ -38,6 +43,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 const templateGrid = $('#templateGrid');
 const sectionTemplate = $('#sectionTemplate');
 const sectionInput = $('#sectionInput');
+const sectionGenerating = $('#sectionGenerating');
 const sectionResult = $('#sectionResult');
 const inputTopic = $('#inputTopic');
 const inputAudience = $('#inputAudience');
@@ -48,7 +54,11 @@ const btnDownload = $('#btnDownload');
 const downloadTitle = $('#downloadTitle');
 const downloadMeta = $('#downloadMeta');
 const previewContainer = $('#previewContainer');
-const resultDesc = $('#resultDesc');
+const previewContainerLive = $('#previewContainerLive');
+const progressBar = $('#progressBar');
+const progressText = $('#progressText');
+const generatingTitle = $('#generatingTitle');
+const generatingDesc = $('#generatingDesc');
 
 // Config modal
 const modalConfig = $('#modalConfig');
@@ -79,6 +89,12 @@ function showToast(message, type = 'info') {
         toast.style.transition = 'all 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
 }
 
 // ============================================
@@ -114,12 +130,8 @@ function renderTemplates() {
         </div>
     `).join('');
 
-    // Bind click events
     $$('.template-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const id = card.dataset.id;
-            selectTemplate(id);
-        });
+        card.addEventListener('click', () => selectTemplate(card.dataset.id));
     });
 }
 
@@ -131,7 +143,97 @@ function selectTemplate(id) {
 }
 
 // ============================================
-// Generate
+// HTML Slide Preview Renderers
+// ============================================
+
+function renderTitleSlideHTML(title, totalSlides) {
+    return `
+    <div class="slide-preview" style="animation-delay: 0s">
+        <div class="slide-aspect">
+            <div class="slide-content slide-title-page">
+                <div class="slide-decorations">
+                    <div class="deco-circle"></div>
+                    <div class="deco-circle"></div>
+                </div>
+                <div class="slide-main-title">${escapeHtml(title)}</div>
+                <div class="slide-subtitle">共 ${totalSlides} 页 · AI 智能生成</div>
+            </div>
+        </div>
+        <div class="slide-status done">
+            <span class="status-dot"></span>
+            标题页
+        </div>
+    </div>`;
+}
+
+function renderTocSlideHTML(slides) {
+    const items = slides.map((s, i) =>
+        `<div class="toc-item"><span class="toc-num">${i + 1}</span>${escapeHtml(s.title)}</div>`
+    ).join('');
+
+    return `
+    <div class="slide-preview" style="animation-delay: 0.1s">
+        <div class="slide-aspect">
+            <div class="slide-content slide-toc-page" style="padding:0">
+                <div class="toc-left">
+                    <h3>目录</h3>
+                    <span>CONTENTS</span>
+                </div>
+                <div class="toc-right">${items}</div>
+            </div>
+        </div>
+        <div class="slide-status done">
+            <span class="status-dot"></span>
+            目录页
+        </div>
+    </div>`;
+}
+
+function renderContentSlideHTML(slideData, index, totalSlides) {
+    const points = (slideData.content || []).map(p =>
+        `<div class="slide-point">
+            <div class="point-icon">${POINT_SVG}</div>
+            <span>${escapeHtml(p)}</span>
+        </div>`
+    ).join('');
+
+    return `
+    <div class="slide-preview" id="slide-preview-${index}">
+        <div class="slide-aspect">
+            <div class="slide-content slide-content-page">
+                <div class="slide-header">
+                    <div class="slide-num-badge">${index}</div>
+                    <div class="slide-title">${escapeHtml(slideData.title)}</div>
+                </div>
+                <div class="slide-points">${points}</div>
+                <div class="slide-page-num">${index} / ${totalSlides}</div>
+            </div>
+        </div>
+        <div class="slide-status">
+            <span class="status-dot"></span>
+            第 ${index} 页
+        </div>
+    </div>`;
+}
+
+function renderEndSlideHTML() {
+    return `
+    <div class="slide-preview">
+        <div class="slide-aspect">
+            <div class="slide-content slide-end-page">
+                <div class="end-title">谢谢</div>
+                <div class="end-subtitle">THANK YOU</div>
+            </div>
+        </div>
+        <div class="slide-status done">
+            <span class="status-dot"></span>
+            结束页
+        </div>
+    </div>`;
+}
+
+// ============================================
+// Main Generate Flow
 // ============================================
 async function handleGenerate() {
     if (isGenerating) return;
@@ -148,8 +250,18 @@ async function handleGenerate() {
         return;
     }
 
-    // Start generating
     isGenerating = true;
+
+    // 切换到生成中界面
+    sectionGenerating.style.display = 'block';
+    sectionResult.style.display = 'none';
+    previewContainerLive.innerHTML = '';
+    progressBar.style.width = '0%';
+    progressText.textContent = '正在调用 AI 生成内容...';
+    generatingTitle.textContent = 'AI 正在生成内容...';
+    sectionGenerating.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // 禁用按钮
     const btnText = btnGenerate.querySelector('.btn-text');
     const btnLoading = btnGenerate.querySelector('.btn-loading');
     btnText.style.display = 'none';
@@ -157,7 +269,8 @@ async function handleGenerate() {
     btnGenerate.disabled = true;
 
     try {
-        const resp = await fetch('/api/generate', {
+        // 第一步：调用 AI 生成内容
+        const resp = await fetch('/api/generate-content', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -170,14 +283,94 @@ async function handleGenerate() {
 
         const data = await resp.json();
 
-        if (data.success) {
-            renderResult(data.data);
-            showToast('演示文稿生成成功！', 'success');
-        } else {
+        if (!data.success) {
             showToast(data.error || '生成失败', 'error');
+            sectionGenerating.style.display = 'none';
+            return;
         }
+
+        const slidesData = data.data;
+        const slides = slidesData.slides || [];
+        generatedSlidesData = slidesData;
+
+        progressBar.style.width = '10%';
+        progressText.textContent = '内容生成完成，正在渲染页面...';
+        generatingTitle.textContent = '正在逐页渲染预览...';
+
+        // 第二步：逐页渲染 HTML 预览
+        // 先渲染标题页
+        previewContainerLive.innerHTML = renderTitleSlideHTML(slidesData.title || topic, slides.length);
+        // 触发动画
+        setTimeout(() => {
+            previewContainerLive.querySelectorAll('.slide-preview').forEach(el => el.classList.add('visible'));
+        }, 50);
+        progressBar.style.width = '20%';
+
+        await sleep(600);
+
+        // 渲染目录页（2页以上）
+        if (slides.length >= 2) {
+            previewContainerLive.insertAdjacentHTML('beforeend', renderTocSlideHTML(slides));
+            setTimeout(() => {
+                previewContainerLive.querySelectorAll('.slide-preview:not(.visible)').forEach(el => el.classList.add('visible'));
+            }, 50);
+            await sleep(500);
+        }
+
+        // 逐页渲染内容
+        for (let i = 0; i < slides.length; i++) {
+            const pct = 20 + Math.round((i + 1) / slides.length * 60);
+            progressBar.style.width = pct + '%';
+            progressText.textContent = `正在渲染第 ${i + 1} / ${slides.length} 页...`;
+
+            previewContainerLive.insertAdjacentHTML('beforeend', renderContentSlideHTML(slides[i], i + 1, slides.length));
+            setTimeout(() => {
+                const el = document.getElementById(`slide-preview-${i + 1}`);
+                if (el) el.classList.add('visible');
+            }, 50);
+
+            await sleep(500);
+        }
+
+        // 渲染结束页
+        previewContainerLive.insertAdjacentHTML('beforeend', renderEndSlideHTML());
+        setTimeout(() => {
+            previewContainerLive.querySelectorAll('.slide-preview:not(.visible)').forEach(el => el.classList.add('visible'));
+        }, 50);
+
+        progressBar.style.width = '85%';
+        progressText.textContent = '页面渲染完成，正在生成 PPT 文件...';
+        generatingTitle.textContent = '正在生成 PPT 文件...';
+
+        // 第三步：调用后端生成 PPT 文件
+        const pptResp = await fetch('/api/create-ppt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                slides_data: slidesData,
+                template_id: selectedTemplate,
+            }),
+        });
+
+        const pptData = await pptResp.json();
+
+        if (!pptData.success) {
+            showToast(pptData.error || 'PPT 生成失败', 'error');
+            return;
+        }
+
+        progressBar.style.width = '100%';
+        progressText.textContent = '全部完成！';
+        generatingTitle.textContent = '生成完成！';
+
+        // 第四步：显示结果
+        await sleep(500);
+        showResult(slidesData, pptData.download_url);
+        showToast('演示文稿生成成功！', 'success');
+
     } catch (err) {
         showToast('网络错误，请检查连接后重试', 'error');
+        console.error(err);
     } finally {
         isGenerating = false;
         btnText.style.display = 'inline';
@@ -186,50 +379,31 @@ async function handleGenerate() {
     }
 }
 
-function renderResult(data) {
-    const { title, slides, download_url } = data;
+function showResult(slidesData, downloadUrl) {
+    const { title, slides } = slidesData;
 
-    // Update download bar
-    downloadTitle.textContent = title;
+    // 更新下载栏
+    downloadTitle.textContent = title || '演示文稿';
     downloadMeta.textContent = `共 ${slides.length} 页`;
-    btnDownload.href = download_url;
+    btnDownload.href = downloadUrl;
 
-    // Render preview cards
-    previewContainer.innerHTML = slides.map((slide, i) => `
-        <div class="preview-card">
-            <div class="preview-card-header">
-                <span class="preview-slide-num">${i + 1}</span>
-                <h4>${escapeHtml(slide.title)}</h4>
-            </div>
-            <div class="preview-card-body">
-                <ul>
-                    ${(slide.content || []).map(p => `<li>${escapeHtml(p)}</li>`).join('')}
-                </ul>
-            </div>
-            ${slide.notes ? `
-                <div class="preview-card-notes">
-                    <strong>备注：</strong>${escapeHtml(slide.notes)}
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
+    // 复制预览卡片到结果区域
+    previewContainer.innerHTML = previewContainerLive.innerHTML;
 
-    // Show result section
+    // 切换到结果界面
+    sectionGenerating.style.display = 'none';
     sectionResult.style.display = 'block';
     sectionResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text || '';
-    return div.innerHTML;
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ============================================
 // Config Modal
 // ============================================
 function openConfig() {
-    // Load saved config from localStorage
     cfgApiKey.value = localStorage.getItem('mimo_api_key') || '';
     cfgBaseUrl.value = localStorage.getItem('mimo_base_url') || 'https://token-plan-cn.xiaomimimo.com/v1';
     cfgModel.value = localStorage.getItem('mimo_model') || 'mimo-v2.5-pro';
@@ -260,11 +434,8 @@ async function testConnection() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model }),
         });
-    } catch (e) {
-        // ignore
-    }
+    } catch (e) {}
 
-    // 显示加载状态
     const btnText = btnTestConnection.querySelector('.btn-test-text');
     const btnLoading = btnTestConnection.querySelector('.btn-test-loading');
     btnText.style.display = 'none';
@@ -304,7 +475,7 @@ async function testConnection() {
     }
 }
 
-function saveConfig() {
+async function saveConfig() {
     const apiKey = cfgApiKey.value.trim();
     const baseUrl = cfgBaseUrl.value.trim();
     const model = cfgModel.value.trim();
@@ -314,17 +485,15 @@ function saveConfig() {
         return;
     }
 
-    // Save to localStorage
     localStorage.setItem('mimo_api_key', apiKey);
     localStorage.setItem('mimo_base_url', baseUrl);
     localStorage.setItem('mimo_model', model);
 
-    // Send to backend to update runtime config
     fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model: model }),
-    }).catch(() => {}); // Best effort
+    }).catch(() => {});
 
     showToast('配置已保存', 'success');
     closeConfig();
@@ -335,6 +504,8 @@ function saveConfig() {
 // ============================================
 function handleNew() {
     sectionResult.style.display = 'none';
+    sectionGenerating.style.display = 'none';
+    previewContainerLive.innerHTML = '';
     inputTopic.value = '';
     inputExtra.value = '';
     sectionInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -347,32 +518,24 @@ function handleNew() {
 document.addEventListener('DOMContentLoaded', () => {
     loadTemplates();
 
-    // Generate button
     btnGenerate.addEventListener('click', handleGenerate);
 
-    // Enter key in topic input
     inputTopic.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            handleGenerate();
-        }
+        if (e.key === 'Enter' && !e.shiftKey) handleGenerate();
     });
 
-    // New button
     btnNew.addEventListener('click', handleNew);
 
-    // Config modal
     btnConfig.addEventListener('click', openConfig);
     btnCloseModal.addEventListener('click', closeConfig);
     btnCancelConfig.addEventListener('click', closeConfig);
     btnSaveConfig.addEventListener('click', saveConfig);
     btnTestConnection.addEventListener('click', testConnection);
 
-    // Close modal on overlay click
     modalConfig.addEventListener('click', (e) => {
         if (e.target === modalConfig) closeConfig();
     });
 
-    // Escape key closes modal
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeConfig();
     });

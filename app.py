@@ -372,6 +372,90 @@ def test_connection():
         return jsonify({"success": False, "error": f"测试失败: {str(e)}"})
 
 
+@app.route("/api/generate-content", methods=["POST"])
+def generate_content():
+    """
+    第一步：只调用 AI 生成内容（JSON），不生成 PPT 文件
+    前端拿到内容后逐页渲染 HTML 预览
+    """
+    logger.info("=" * 60)
+    logger.info("[生成内容] 收到请求")
+
+    try:
+        body = request.get_json()
+        if not body:
+            return jsonify({"success": False, "error": "请提供请求数据"}), 400
+
+        template_id = body.get("template_id", "")
+        topic = body.get("topic", "")
+        audience = body.get("audience", "通用受众")
+        extra = body.get("extra_instructions", "")
+
+        logger.info(f"  模板: {template_id}, 主题: {topic}, 受众: {audience}")
+
+        if not template_id or not topic:
+            return jsonify({"success": False, "error": "请选择模板并输入主题"}), 400
+
+        template = get_template_by_id(template_id)
+        if not template:
+            return jsonify({"success": False, "error": "无效的模板ID"}), 400
+
+        system_prompt = template["system_prompt"]
+        extra_text = f"额外要求：{extra}" if extra else ""
+        user_prompt = template["user_prompt_template"].format(
+            topic=topic, audience=audience, extra=extra_text,
+        )
+
+        logger.info("[生成内容] 调用 AI 中...")
+        slides_data = call_mimo_ai(system_prompt, user_prompt)
+        logger.info(f"[生成内容] AI 返回 {len(slides_data.get('slides', []))} 页")
+
+        return jsonify({
+            "success": True,
+            "data": slides_data,
+            "template_id": template_id,
+        })
+
+    except Exception as e:
+        logger.error(f"[生成内容] 失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": f"生成失败: {str(e)}"}), 500
+
+
+@app.route("/api/create-ppt", methods=["POST"])
+def create_ppt():
+    """
+    第二步：接收已生成的内容 JSON，生成 PPT 文件并返回下载链接
+    """
+    logger.info("[创建PPT] 收到请求")
+
+    try:
+        body = request.get_json()
+        if not body:
+            return jsonify({"success": False, "error": "请提供数据"}), 400
+
+        slides_data = body.get("slides_data", {})
+        template_id = body.get("template_id", "blueprint")
+
+        if not slides_data.get("slides"):
+            return jsonify({"success": False, "error": "没有幻灯片数据"}), 400
+
+        logger.info(f"[创建PPT] 生成 {len(slides_data['slides'])} 页 PPT...")
+        ppt_path = generate_ppt(slides_data, template_id)
+        filename = os.path.basename(ppt_path)
+        logger.info(f"[创建PPT] 完成: {filename}")
+
+        return jsonify({
+            "success": True,
+            "download_url": f"/api/download/{filename}",
+        })
+
+    except Exception as e:
+        logger.error(f"[创建PPT] 失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": f"PPT生成失败: {str(e)}"}), 500
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
     """

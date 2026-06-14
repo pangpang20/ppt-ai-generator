@@ -466,19 +466,32 @@ def preview():
 @app.route("/api/download/<filename>", methods=["GET"])
 def download(filename):
     """下载生成的PPT文件"""
+    logger.info(f"[下载] 请求文件: {filename}")
+
     if not filename.endswith(".pptx") or ".." in filename or "/" in filename:
+        logger.warning(f"[下载] 无效的文件名: {filename}")
         return jsonify({"success": False, "error": "无效的文件名"}), 400
 
     filepath = os.path.join(OUTPUT_DIR, filename)
+    logger.debug(f"[下载] 文件路径: {filepath}")
+    logger.debug(f"[下载] 文件存在: {os.path.exists(filepath)}")
+
     if not os.path.exists(filepath):
+        logger.warning(f"[下载] 文件不存在: {filepath}")
         return jsonify({"success": False, "error": "文件不存在"}), 404
 
-    return send_file(
-        filepath,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    )
+    try:
+        logger.info(f"[下载] 开始发送文件: {filename}")
+        return send_file(
+            filepath,
+            as_attachment=True,
+            attachment_filename=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
+    except Exception as e:
+        logger.error(f"[下载] 发送文件失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": f"下载失败: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

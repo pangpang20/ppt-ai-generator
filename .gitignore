@@ -7,3 +7,4 @@ logs/
 /tmp/
 *.pptx
 .env
+settings.json

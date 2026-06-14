@@ -250,13 +250,20 @@ def update_config():
     if "model" in body:
         config.MIMO_MODEL = body["model"]
 
+    # 持久化保存到文件
+    config.save_settings(
+        api_key=config.MIMO_API_KEY,
+        base_url=config.MIMO_BASE_URL,
+        model=config.MIMO_MODEL,
+    )
+
     new_key = config.MIMO_API_KEY[:10] + "..." if len(config.MIMO_API_KEY) > 10 else config.MIMO_API_KEY
-    logger.info(f"配置更新:")
+    logger.info(f"配置更新（已持久化）:")
     logger.info(f"  API Key: {old_key} -> {new_key}")
     logger.info(f"  Base URL: {old_url} -> {config.MIMO_BASE_URL}")
     logger.info(f"  Model: {old_model} -> {config.MIMO_MODEL}")
 
-    return jsonify({"success": True, "message": "配置已更新"})
+    return jsonify({"success": True, "message": "配置已保存"})
 
 
 @app.route("/api/test-connection", methods=["POST"])

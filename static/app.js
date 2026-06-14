@@ -274,8 +274,14 @@ async function handleGenerate() {
     btnGenerate.disabled = true;
 
     try {
-        // 第一步：调用 AI 生成内容
-        const resp = await fetch('/api/generate-content', {
+        // 使用 SSE 流式接收
+        const slides = [];
+        let title = topic;
+        let totalSlides = 0;
+        let receivedTitle = false;
+
+        // 通过 fetch + ReadableStream 实现 SSE（因为需要 POST）
+        const resp = await fetch('/api/generate-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -286,95 +292,126 @@ async function handleGenerate() {
             }),
         });
 
-        const data = await resp.json();
-
-        if (!data.success) {
-            showToast(data.error || '生成失败', 'error');
+        if (!resp.ok) {
+            const err = await resp.json();
+            showToast(err.error || '生成失败', 'error');
             sectionGenerating.style.display = 'none';
             return;
         }
 
-        const slidesData = data.data;
-        const slides = slidesData.slides || [];
-        generatedSlidesData = slidesData;
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
 
-        progressBar.style.width = '10%';
-        progressText.textContent = '内容生成完成，正在渲染页面...';
-        generatingTitle.textContent = '正在逐页渲染预览...';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        // 第二步：逐页渲染 HTML 预览
-        // 先渲染标题页
-        previewContainerLive.innerHTML = renderTitleSlideHTML(slidesData.title || topic, slides.length);
-        // 触发动画
-        setTimeout(() => {
-            previewContainerLive.querySelectorAll('.slide-preview').forEach(el => el.classList.add('visible'));
-        }, 50);
-        progressBar.style.width = '20%';
+            sseBuffer += decoder.decode(value, { stream: true });
 
-        await sleep(600);
+            // 解析 SSE 事件
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() || ''; // 保留不完整的行
 
-        // 渲染目录页（2页以上）
-        if (slides.length >= 2) {
-            previewContainerLive.insertAdjacentHTML('beforeend', renderTocSlideHTML(slides));
-            setTimeout(() => {
-                previewContainerLive.querySelectorAll('.slide-preview:not(.visible)').forEach(el => el.classList.add('visible'));
-            }, 50);
-            await sleep(500);
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const event = JSON.parse(line.slice(6));
+
+                    if (event.type === 'slide') {
+                        // 收到一页内容，立即渲染
+                        const slide = event.slide;
+                        const idx = event.index;
+                        slides.push(slide);
+                        totalSlides = slides.length;
+
+                        // 第一页到达时，先渲染标题页
+                        if (idx === 1) {
+                            generatingTitle.textContent = '正在逐页生成内容...';
+                            // 先渲染标题页（用临时标题）
+                            previewContainerLive.innerHTML = renderTitleSlideHTML(topic, '...');
+                            setTimeout(() => {
+                                previewContainerLive.querySelectorAll('.slide-preview').forEach(el => el.classList.add('visible'));
+                            }, 50);
+                        }
+
+                        // 更新标题页的页数
+                        if (idx === 1 && !receivedTitle) {
+                            // 不需要等，直接继续
+                        }
+
+                        progressBar.style.width = Math.round(idx / 10 * 80) + '%';
+                        progressText.textContent = `已生成第 ${idx} 页: ${slide.title}`;
+
+                        // 渲染这一页
+                        previewContainerLive.insertAdjacentHTML('beforeend', renderContentSlideHTML(slide, idx, '?'));
+                        setTimeout(() => {
+                            const el = document.getElementById(`slide-preview-${idx}`);
+                            if (el) el.classList.add('visible');
+                        }, 50);
+
+                        bindSlideClickEvents();
+
+                    } else if (event.type === 'done') {
+                        // 全部完成
+                        title = event.title || topic;
+                        totalSlides = event.total;
+
+                        // 更新标题页
+                        const titleSlide = previewContainerLive.querySelector('.slide-title-page');
+                        if (titleSlide) {
+                            const sub = titleSlide.querySelector('.slide-subtitle');
+                            if (sub) sub.textContent = `共 ${totalSlides} 页 · AI 智能生成`;
+                        }
+
+                        // 更新所有页码
+                        previewContainerLive.querySelectorAll('.slide-page-num').forEach(el => {
+                            el.textContent = el.textContent.replace('?', totalSlides);
+                        });
+
+                        // 渲染结束页
+                        previewContainerLive.insertAdjacentHTML('beforeend', renderEndSlideHTML());
+                        setTimeout(() => {
+                            previewContainerLive.querySelectorAll('.slide-preview:not(.visible)').forEach(el => el.classList.add('visible'));
+                        }, 50);
+
+                        progressBar.style.width = '85%';
+                        progressText.textContent = '页面渲染完成，正在生成 PPT 文件...';
+                        generatingTitle.textContent = '正在生成 PPT 文件...';
+
+                        // 生成 PPT 文件
+                        generatedSlidesData = { title: title, slides: slides };
+
+                        const pptResp = await fetch('/api/create-ppt', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                slides_data: generatedSlidesData,
+                                template_id: selectedTemplate,
+                            }),
+                        });
+
+                        const pptData = await pptResp.json();
+
+                        if (pptData.success) {
+                            progressBar.style.width = '100%';
+                            progressText.textContent = '全部完成！';
+                            generatingTitle.textContent = '生成完成！';
+                            await sleep(300);
+                            showResult(generatedSlidesData, pptData.download_url);
+                            showToast('演示文稿生成成功！', 'success');
+                        } else {
+                            showToast(pptData.error || 'PPT 生成失败', 'error');
+                        }
+
+                    } else if (event.type === 'error') {
+                        showToast('AI 错误: ' + event.error, 'error');
+                    }
+                } catch (e) {
+                    // 忽略解析错误
+                }
+            }
         }
-
-        // 逐页渲染内容
-        for (let i = 0; i < slides.length; i++) {
-            const pct = 20 + Math.round((i + 1) / slides.length * 60);
-            progressBar.style.width = pct + '%';
-            progressText.textContent = `正在渲染第 ${i + 1} / ${slides.length} 页...`;
-
-            previewContainerLive.insertAdjacentHTML('beforeend', renderContentSlideHTML(slides[i], i + 1, slides.length));
-            setTimeout(() => {
-                const el = document.getElementById(`slide-preview-${i + 1}`);
-                if (el) el.classList.add('visible');
-            }, 50);
-
-            // 绑定点击事件（每渲染一页就绑定一次，确保新卡片也能点击）
-            bindSlideClickEvents();
-
-            await sleep(500);
-        }
-
-        // 渲染结束页
-        previewContainerLive.insertAdjacentHTML('beforeend', renderEndSlideHTML());
-        setTimeout(() => {
-            previewContainerLive.querySelectorAll('.slide-preview:not(.visible)').forEach(el => el.classList.add('visible'));
-        }, 50);
-
-        progressBar.style.width = '85%';
-        progressText.textContent = '页面渲染完成，正在生成 PPT 文件...';
-        generatingTitle.textContent = '正在生成 PPT 文件...';
-
-        // 第三步：调用后端生成 PPT 文件
-        const pptResp = await fetch('/api/create-ppt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                slides_data: slidesData,
-                template_id: selectedTemplate,
-            }),
-        });
-
-        const pptData = await pptResp.json();
-
-        if (!pptData.success) {
-            showToast(pptData.error || 'PPT 生成失败', 'error');
-            return;
-        }
-
-        progressBar.style.width = '100%';
-        progressText.textContent = '全部完成！';
-        generatingTitle.textContent = '生成完成！';
-
-        // 第四步：显示结果
-        await sleep(500);
-        showResult(slidesData, pptData.download_url);
-        showToast('演示文稿生成成功！', 'success');
 
     } catch (err) {
         showToast('网络错误，请检查连接后重试', 'error');

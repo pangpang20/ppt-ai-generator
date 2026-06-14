@@ -10,7 +10,7 @@ import sys
 import traceback
 
 import requests
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file, Response, stream_with_context
 
 from config import OUTPUT_DIR
 from ppt_generator import generate_ppt
@@ -420,6 +420,200 @@ def generate_content():
         logger.error(f"[生成内容] 失败: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"success": False, "error": f"生成失败: {str(e)}"}), 500
+
+
+@app.route("/api/generate-stream", methods=["POST"])
+def generate_stream():
+    """
+    流式生成：SSE 逐页推送内容
+    前端通过 EventSource 接收，每收到一页就立即渲染
+    """
+    import config as cfg
+
+    body = request.get_json()
+    if not body:
+        return jsonify({"success": False, "error": "请提供请求数据"}), 400
+
+    template_id = body.get("template_id", "")
+    topic = body.get("topic", "")
+    audience = body.get("audience", "通用受众")
+    extra = body.get("extra_instructions", "")
+
+    if not template_id or not topic:
+        return jsonify({"success": False, "error": "请选择模板并输入主题"}), 400
+
+    template = get_template_by_id(template_id)
+    if not template:
+        return jsonify({"success": False, "error": "无效的模板ID"}), 400
+
+    system_prompt = template["system_prompt"]
+    extra_text = f"额外要求：{extra}" if extra else ""
+    user_prompt = template["user_prompt_template"].format(
+        topic=topic, audience=audience, extra=extra_text,
+    )
+
+    def generate():
+        url = f"{cfg.MIMO_BASE_URL}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg.MIMO_API_KEY}",
+        }
+        payload = {
+            "model": cfg.MIMO_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": cfg.TEMPERATURE,
+            "max_tokens": cfg.MAX_TOKENS,
+            "stream": True,
+        }
+
+        logger.info("[流式生成] 开始调用 AI (stream=True)")
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=120, stream=True)
+            logger.info(f"[流式生成] 响应状态码: {resp.status_code}")
+
+            if resp.status_code != 200:
+                error_msg = resp.text[:300]
+                logger.error(f"[流式生成] API 错误: {resp.status_code} - {error_msg}")
+                yield f"data: {json.dumps({'type': 'error', 'error': f'AI 服务错误: {resp.status_code}'})}\n\n"
+                return
+
+            # 流式读取并累积内容
+            buffer = ""
+            full_content = ""
+            slide_count = 0
+            title = topic  # 默认标题
+
+            for line in resp.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str.strip() == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            full_content += content
+                            buffer += content
+
+                            # 尝试从 buffer 中提取完整的 slide 对象
+                            slides, remaining, extracted_title = _extract_slides_from_buffer(buffer)
+                            if extracted_title and extracted_title != topic:
+                                title = extracted_title
+
+                            for slide in slides:
+                                slide_count += 1
+                                slide["slide_number"] = slide_count
+                                logger.info(f"[流式生成] 提取到第 {slide_count} 页: {slide.get('title', '?')}")
+                                yield f"data: {json.dumps({'type': 'slide', 'slide': slide, 'index': slide_count}, ensure_ascii=False)}\n\n"
+
+                            buffer = remaining
+                    except json.JSONDecodeError:
+                        continue
+
+            # 处理 buffer 中剩余内容
+            if buffer.strip():
+                slides, _, extracted_title = _extract_slides_from_buffer(buffer)
+                if extracted_title and extracted_title != topic:
+                    title = extracted_title
+                for slide in slides:
+                    slide_count += 1
+                    slide["slide_number"] = slide_count
+                    logger.info(f"[流式生成] 提取到第 {slide_count} 页: {slide.get('title', '?')}")
+                    yield f"data: {json.dumps({'type': 'slide', 'slide': slide, 'index': slide_count}, ensure_ascii=False)}\n\n"
+
+            # 如果没有提取到任何 slide，尝试解析完整内容
+            if slide_count == 0:
+                logger.info("[流式生成] 流式提取失败，尝试解析完整内容")
+                try:
+                    parsed = parse_ai_response(full_content)
+                    title = parsed.get("title", topic)
+                    for slide in parsed.get("slides", []):
+                        slide_count += 1
+                        yield f"data: {json.dumps({'type': 'slide', 'slide': slide, 'index': slide_count}, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    logger.error(f"[流式生成] 解析失败: {e}")
+
+            # 发送完成事件
+            yield f"data: {json.dumps({'type': 'done', 'title': title, 'total': slide_count}, ensure_ascii=False)}\n\n"
+            logger.info(f"[流式生成] 完成，共 {slide_count} 页")
+
+        except requests.exceptions.Timeout:
+            logger.error("[流式生成] 超时")
+            yield f"data: {json.dumps({'type': 'error', 'error': 'AI 服务响应超时'})}\n\n"
+        except Exception as e:
+            logger.error(f"[流式生成] 错误: {e}")
+            logger.error(traceback.format_exc())
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+def _extract_slides_from_buffer(buffer):
+    """
+    从 buffer 中提取完整的 slide 对象
+    返回: (slides_list, remaining_buffer, title)
+    """
+    import config as cfg
+    slides = []
+    title = None
+
+    # 先尝试提取 title
+    title_match = re.search(r'"title"\s*:\s*"([^"]*)"', buffer)
+    if title_match and title_match.start() < 100:  # title 通常在开头
+        title = title_match.group(1)
+
+    # 查找所有完整的 slide 对象
+    # 匹配模式: { "slide_number": ..., "title": "...", "content": [...], "notes": "..." }
+    slide_pattern = re.compile(
+        r'\{\s*"slide_number"\s*:\s*\d+\s*,'
+        r'\s*"title"\s*:\s*"[^"]*"\s*,'
+        r'\s*"content"\s*:\s*\[[^\]]*\]\s*,'
+        r'\s*"notes"\s*:\s*"[^"]*"\s*\}',
+        re.DOTALL
+    )
+
+    last_end = 0
+    for match in slide_pattern.finditer(buffer):
+        try:
+            slide = json.loads(match.group())
+            slides.append(slide)
+            last_end = match.end()
+        except json.JSONDecodeError:
+            continue
+
+    # 如果没找到带 slide_number 的格式，尝试不带 slide_number 的
+    if not slides:
+        slide_pattern2 = re.compile(
+            r'\{\s*"title"\s*:\s*"[^"]*"\s*,'
+            r'\s*"content"\s*:\s*\[[^\]]*\]\s*,'
+            r'\s*"notes"\s*:\s*"[^"]*"\s*\}',
+            re.DOTALL
+        )
+        for match in slide_pattern2.finditer(buffer):
+            try:
+                slide = json.loads(match.group())
+                slides.append(slide)
+                last_end = match.end()
+            except json.JSONDecodeError:
+                continue
+
+    remaining = buffer[last_end:] if last_end > 0 else buffer
+    return slides, remaining, title
 
 
 @app.route("/api/create-ppt", methods=["POST"])

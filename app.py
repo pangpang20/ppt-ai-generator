@@ -779,6 +779,147 @@ def download(filename):
         return jsonify({"success": False, "error": f"下载失败: {str(e)}"}), 500
 
 
+@app.route("/api/ai-expand", methods=["POST"])
+def ai_expand():
+    """AI 内容扩展：为某页补充更多内容"""
+    import config as cfg
+    body = request.get_json()
+    title = body.get("title", "")
+    content = body.get("content", [])
+    prompt = f"请为以下PPT页面内容补充更多详细信息，返回5-8个要点的JSON数组：\n标题：{title}\n当前内容：{json.dumps(content, ensure_ascii=False)}\n只返回JSON数组格式，例如：[\"要点1\",\"要点2\"]"
+
+    try:
+        url = f"{cfg.MIMO_BASE_URL}/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
+        payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 1000}
+        resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        if resp.status_code == 200:
+            reply = resp.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\[.*\]', reply, re.DOTALL)
+            if match:
+                new_content = json.loads(match.group())
+                return jsonify({"success": True, "content": new_content})
+        return jsonify({"success": False, "error": "AI 扩展失败"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/ai-simplify", methods=["POST"])
+def ai_simplify():
+    """AI 内容精简：精简长内容为核心要点"""
+    import config as cfg
+    body = request.get_json()
+    content = body.get("content", [])
+    prompt = f"请将以下PPT内容精简为3-5个核心要点，返回JSON数组：\n{json.dumps(content, ensure_ascii=False)}\n只返回JSON数组。"
+
+    try:
+        url = f"{cfg.MIMO_BASE_URL}/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
+        payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.5, "max_tokens": 500}
+        resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        if resp.status_code == 200:
+            reply = resp.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\[.*\]', reply, re.DOTALL)
+            if match:
+                new_content = json.loads(match.group())
+                return jsonify({"success": True, "content": new_content})
+        return jsonify({"success": False, "error": "AI 精简失败"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/ai-translate", methods=["POST"])
+def ai_translate():
+    """AI 翻译：将内容翻译为指定语言"""
+    import config as cfg
+    body = request.get_json()
+    slides_data = body.get("slides_data", {})
+    target_lang = body.get("target_lang", "en")
+    lang_names = {"en": "英文", "zh": "中文", "ja": "日文", "ko": "韩文"}
+
+    prompt = f"请将以下PPT内容翻译为{lang_names.get(target_lang, target_lang)}，保持JSON格式不变：\n{json.dumps(slides_data, ensure_ascii=False)}"
+
+    try:
+        url = f"{cfg.MIMO_BASE_URL}/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
+        payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "max_tokens": 4096}
+        resp = requests.post(url, headers=headers, json=payload, timeout=120)
+        if resp.status_code == 200:
+            reply = resp.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\{[\s\S]*\}', reply)
+            if match:
+                translated = json.loads(match.group())
+                return jsonify({"success": True, "data": translated})
+        return jsonify({"success": False, "error": "翻译失败"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/ai-suggest-image", methods=["POST"])
+def ai_suggest_image():
+    """AI 配图建议：为每页推荐配图关键词"""
+    import config as cfg
+    body = request.get_json()
+    title = body.get("title", "")
+    content = body.get("content", [])
+    prompt = f"为以下PPT页面推荐3个配图搜索关键词（用于Unsplash/Pexels），返回JSON数组：\n标题：{title}\n内容：{json.dumps(content[:3], ensure_ascii=False)}\n只返回JSON数组，例如：[\"business meeting\",\"data chart\",\"teamwork\"]"
+
+    try:
+        url = f"{cfg.MIMO_BASE_URL}/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {cfg.MIMO_API_KEY}"}
+        payload = {"model": cfg.MIMO_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 200}
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 200:
+            reply = resp.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\[.*\]', reply, re.DOTALL)
+            if match:
+                keywords = json.loads(match.group())
+                return jsonify({"success": True, "keywords": keywords})
+        return jsonify({"success": False, "error": "建议生成失败"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/export-markdown", methods=["POST"])
+def export_markdown():
+    """导出为 Markdown 格式"""
+    body = request.get_json()
+    slides_data = body.get("slides_data", {})
+    title = slides_data.get("title", "演示文稿")
+    slides = slides_data.get("slides", [])
+
+    md = f"# {title}\n\n"
+    for i, slide in enumerate(slides):
+        md += f"## {i+1}. {slide.get('title', '')}\n\n"
+        for point in slide.get("content", []):
+            md += f"- {point}\n"
+        if slide.get("notes"):
+            md += f"\n> **备注:** {slide['notes']}\n"
+        md += "\n---\n\n"
+
+    return jsonify({"success": True, "markdown": md})
+
+
+@app.route("/api/export-text", methods=["POST"])
+def export_text():
+    """导出为纯文本格式"""
+    body = request.get_json()
+    slides_data = body.get("slides_data", {})
+    title = slides_data.get("title", "演示文稿")
+    slides = slides_data.get("slides", [])
+
+    text = f"{title}\n{'='*40}\n\n"
+    for i, slide in enumerate(slides):
+        text += f"第{i+1}页: {slide.get('title', '')}\n{'-'*30}\n"
+        for point in slide.get("content", []):
+            text += f"  • {point}\n"
+        if slide.get("notes"):
+            text += f"  [备注] {slide['notes']}\n"
+        text += "\n"
+
+    return jsonify({"success": True, "text": text})
+
+
 if __name__ == "__main__":
     import config
     logger.info("=" * 60)

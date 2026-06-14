@@ -190,15 +190,18 @@ function renderTocSlideHTML(slides) {
 }
 
 function renderContentSlideHTML(slideData, index, totalSlides) {
-    const points = (slideData.content || []).map(p =>
+    const points = (slideData.content || []).slice(0, 4).map(p =>
         `<div class="slide-point">
             <div class="point-icon">${POINT_SVG}</div>
             <span>${escapeHtml(p)}</span>
         </div>`
     ).join('');
 
+    const extraCount = (slideData.content || []).length - 4;
+    const moreHint = extraCount > 0 ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">...还有 ${extraCount} 个要点</div>` : '';
+
     return `
-    <div class="slide-preview" id="slide-preview-${index}">
+    <div class="slide-preview" id="slide-preview-${index}" style="position:relative">
         <div class="slide-aspect">
             <div class="slide-content slide-content-page">
                 <div class="slide-header">
@@ -206,6 +209,7 @@ function renderContentSlideHTML(slideData, index, totalSlides) {
                     <div class="slide-title">${escapeHtml(slideData.title)}</div>
                 </div>
                 <div class="slide-points">${points}</div>
+                ${moreHint}
                 <div class="slide-page-num">${index} / ${totalSlides}</div>
             </div>
         </div>
@@ -213,6 +217,7 @@ function renderContentSlideHTML(slideData, index, totalSlides) {
             <span class="status-dot"></span>
             第 ${index} 页
         </div>
+        <div class="click-hint">🔍 点击查看详情</div>
     </div>`;
 }
 
@@ -329,6 +334,9 @@ async function handleGenerate() {
                 if (el) el.classList.add('visible');
             }, 50);
 
+            // 绑定点击事件（每渲染一页就绑定一次，确保新卡片也能点击）
+            bindSlideClickEvents();
+
             await sleep(500);
         }
 
@@ -390,6 +398,9 @@ function showResult(slidesData, downloadUrl) {
     // 复制预览卡片到结果区域
     previewContainer.innerHTML = previewContainerLive.innerHTML;
 
+    // 绑定点击事件
+    bindSlideClickEvents();
+
     // 切换到结果界面
     sectionGenerating.style.display = 'none';
     sectionResult.style.display = 'block';
@@ -398,6 +409,125 @@ function showResult(slidesData, downloadUrl) {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ============================================
+// Slide Preview Modal (点击预览详情)
+// ============================================
+let currentSlideIndex = 0;
+
+const modalSlidePreview = $('#modalSlidePreview');
+const slideModalTitle = $('#slideModalTitle');
+const slideModalBody = $('#slideModalBody');
+const slideModalPage = $('#slideModalPage');
+const btnCloseSlideModal = $('#btnCloseSlideModal');
+const btnPrevSlide = $('#btnPrevSlide');
+const btnNextSlide = $('#btnNextSlide');
+
+function openSlideModal(slideIndex) {
+    if (!generatedSlidesData || !generatedSlidesData.slides) return;
+    currentSlideIndex = slideIndex;
+    renderSlideDetail();
+    modalSlidePreview.style.display = 'flex';
+}
+
+function closeSlideModal() {
+    modalSlidePreview.style.display = 'none';
+}
+
+function renderSlideDetail() {
+    const slides = generatedSlidesData.slides;
+    const total = slides.length + 2; // +2 for title and end slide
+    const idx = currentSlideIndex;
+
+    slideModalPage.textContent = `${idx + 1} / ${total}`;
+    btnPrevSlide.disabled = idx === 0;
+    btnNextSlide.disabled = idx === total - 1;
+    btnPrevSlide.style.opacity = idx === 0 ? '0.4' : '1';
+    btnNextSlide.style.opacity = idx === total - 1 ? '0.4' : '1';
+
+    // 标题页
+    if (idx === 0) {
+        slideModalTitle.textContent = '标题页';
+        slideModalBody.innerHTML = `
+        <div class="detail-slide">
+            <div class="detail-slide-header" style="justify-content: center; text-align: center; flex-direction: column; gap: 8px; padding: 40px;">
+                <div class="detail-slide-title" style="font-size: 28px;">${escapeHtml(generatedSlidesData.title)}</div>
+                <div style="opacity: 0.7; font-size: 14px;">共 ${slides.length} 页 · AI 智能生成</div>
+            </div>
+        </div>`;
+        return;
+    }
+
+    // 结束页
+    if (idx === total - 1) {
+        slideModalTitle.textContent = '结束页';
+        slideModalBody.innerHTML = `
+        <div class="detail-slide">
+            <div class="detail-slide-header" style="justify-content: center; text-align: center; flex-direction: column; gap: 8px; padding: 40px;">
+                <div class="detail-slide-title" style="font-size: 32px;">谢谢</div>
+                <div style="opacity: 0.7; font-size: 14px;">THANK YOU</div>
+            </div>
+        </div>`;
+        return;
+    }
+
+    // 内容页 (idx 1 ~ total-2 对应 slides[0] ~ slides[total-3])
+    const slideIdx = idx - 1;
+    const slide = slides[slideIdx];
+    if (!slide) return;
+
+    slideModalTitle.textContent = `第 ${slideIdx + 1} 页 · ${slide.title}`;
+
+    const pointsHTML = (slide.content || []).map((p, i) => `
+        <div class="detail-point">
+            <div class="detail-point-icon">${POINT_SVG}</div>
+            <div class="detail-point-content">
+                <div class="detail-point-text">${escapeHtml(p)}</div>
+            </div>
+        </div>
+    `).join('');
+
+    const notesHTML = slide.notes ? `
+        <div class="detail-notes">
+            <div class="detail-notes-label">📝 演讲者备注</div>
+            <div class="detail-notes-text">${escapeHtml(slide.notes)}</div>
+        </div>
+    ` : '';
+
+    slideModalBody.innerHTML = `
+    <div class="detail-slide">
+        <div class="detail-slide-header">
+            <div class="detail-slide-num">${slideIdx + 1}</div>
+            <div class="detail-slide-title">${escapeHtml(slide.title)}</div>
+        </div>
+        <div class="detail-slide-body">
+            <div class="detail-points">${pointsHTML}</div>
+            ${notesHTML}
+        </div>
+    </div>`;
+}
+
+function prevSlide() {
+    if (currentSlideIndex > 0) {
+        currentSlideIndex--;
+        renderSlideDetail();
+    }
+}
+
+function nextSlide() {
+    const total = generatedSlidesData ? generatedSlidesData.slides.length + 2 : 0;
+    if (currentSlideIndex < total - 1) {
+        currentSlideIndex++;
+        renderSlideDetail();
+    }
+}
+
+function bindSlideClickEvents() {
+    // 为所有预览卡片绑定点击事件
+    document.querySelectorAll('.slide-preview').forEach((card, i) => {
+        card.addEventListener('click', () => openSlideModal(i));
+    });
 }
 
 // ============================================
@@ -536,7 +666,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modalConfig) closeConfig();
     });
 
+    // Slide preview modal
+    btnCloseSlideModal.addEventListener('click', closeSlideModal);
+    btnPrevSlide.addEventListener('click', prevSlide);
+    btnNextSlide.addEventListener('click', nextSlide);
+    modalSlidePreview.addEventListener('click', (e) => {
+        if (e.target === modalSlidePreview) closeSlideModal();
+    });
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeConfig();
+        if (e.key === 'Escape') {
+            closeConfig();
+            closeSlideModal();
+        }
+        if (modalSlidePreview.style.display === 'flex') {
+            if (e.key === 'ArrowLeft') prevSlide();
+            if (e.key === 'ArrowRight') nextSlide();
+        }
     });
 });

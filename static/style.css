@@ -1066,3 +1066,183 @@ body {
     background: var(--danger);
     animation: none;
 }
+
+/* ============================================
+   Slide Preview Modal (点击预览详情)
+   ============================================ */
+.slide-modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    width: 95%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+}
+
+.slide-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.slide-modal-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.slide-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.slide-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.slide-modal-page {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* 详情页样式 */
+.detail-slide {
+    background: var(--bg);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.detail-slide-header {
+    background: var(--primary);
+    color: white;
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.detail-slide-num {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.detail-slide-title {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.detail-slide-body {
+    padding: 24px 28px;
+}
+
+.detail-points {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.detail-point {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.detail-point-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--primary-light, #EFF6FF);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.detail-point-icon svg {
+    width: 16px;
+    height: 16px;
+    color: var(--primary);
+}
+
+.detail-point-content {
+    flex: 1;
+}
+
+.detail-point-text {
+    font-size: 15px;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+.detail-notes {
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: var(--light, #EFF6FF);
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--primary);
+}
+
+.detail-notes-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.detail-notes-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* 点击提示 */
+.slide-preview {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.slide-preview:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.slide-preview:active {
+    transform: translateY(-2px);
+}
+
+.click-hint {
+    position: absolute;
+    bottom: 36px;
+    right: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    background: rgba(255,255,255,0.9);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.slide-preview:hover .click-hint {
+    opacity: 1;
+}

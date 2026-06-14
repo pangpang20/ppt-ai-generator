@@ -129,6 +129,8 @@ async function handleGenerate(){
     const bt=$('#btnGenerate .btn-text'),bl=$('#btnGenerate .btn-loading');bt.style.display='none';bl.style.display='inline-flex';$('#btnGenerate').disabled=true;
     try{
         const slides=[];let title=topic;
+        // 立即设置 generatedSlidesData，这样点击预览就能工作
+        generatedSlidesData={title,slides};
         const resp=await fetch('/api/generate-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_id:selectedTemplate,topic,audience:$('#inputAudience').value.trim()||'通用受众',extra_instructions:$('#inputExtra').value.trim(),color:selectedColor})});
         if(!resp.ok){const e=await resp.json();showToast(e.error||'生成失败','error');return}
         const reader=resp.body.getReader(),decoder=new TextDecoder();let buf='';
@@ -136,11 +138,13 @@ async function handleGenerate(){
             const{done,value}=await reader.read();if(done)break;buf+=decoder.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop()||'';
             for(const line of lines){if(!line.startsWith('data: '))continue;try{
                 const ev=JSON.parse(line.slice(6));
-                if(ev.type==='slide'){const s=ev.slide,i=ev.index;slides.push(s);if(i===1){$('#generatingTitle').textContent='正在逐页生成...';$('#previewContainerLive').innerHTML=renderTitleSlideHTML(topic,'...');setTimeout(()=>$$('.slide-preview').forEach(el=>el.classList.add('visible')),50)}
-                    $('#progressBar').style.width=Math.round(i/10*80)+'%';$('#progressText').textContent=`第 ${i} 页: ${s.title}`;$('#previewContainerLive').insertAdjacentHTML('beforeend',renderContentSlideHTML(s,i,'?'));setTimeout(()=>{const el=$(`#slide-preview-${i}`);if(el)el.classList.add('visible')},50);bindSlideClickEvents()}
-                else if(ev.type==='done'){title=ev.title||topic;const total=ev.total;const sub=$('#previewContainerLive .slide-subtitle');if(sub)sub.textContent=`共 ${total} 页`;$$('.slide-page-num').forEach(el=>{el.textContent=el.textContent.replace('?',total)});$('#previewContainerLive').insertAdjacentHTML('beforeend',renderEndSlideHTML());setTimeout(()=>$$('.slide-preview:not(.visible)').forEach(el=>el.classList.add('visible')),50);
-                    $('#progressBar').style.width='85%';$('#progressText').textContent='正在生成 PPT...';$('#generatingTitle').textContent='正在生成 PPT 文件...';
+                if(ev.type==='slide'){const s=ev.slide,i=ev.index;slides.push(s);
+                    // 实时更新 generatedSlidesData
                     generatedSlidesData={title,slides};
+                    if(i===1){$('#generatingTitle').textContent='正在逐页生成...';$('#previewContainerLive').innerHTML=renderTitleSlideHTML(topic,'...');setTimeout(()=>$$('.slide-preview').forEach(el=>el.classList.add('visible')),50)}
+                    $('#progressBar').style.width=Math.round(i/10*80)+'%';$('#progressText').textContent=`第 ${i} 页: ${s.title}`;$('#previewContainerLive').insertAdjacentHTML('beforeend',renderContentSlideHTML(s,i,'?'));setTimeout(()=>{const el=$(`#slide-preview-${i}`);if(el)el.classList.add('visible')},50);bindSlideClickEvents()}
+                else if(ev.type==='done'){title=ev.title||topic;const total=ev.total;generatedSlidesData={title,slides};const sub=$('#previewContainerLive .slide-subtitle');if(sub)sub.textContent=`共 ${total} 页`;$$('.slide-page-num').forEach(el=>{el.textContent=el.textContent.replace('?',total)});$('#previewContainerLive').insertAdjacentHTML('beforeend',renderEndSlideHTML());setTimeout(()=>$$('.slide-preview:not(.visible)').forEach(el=>el.classList.add('visible')),50);
+                    $('#progressBar').style.width='85%';$('#progressText').textContent='正在生成 PPT...';$('#generatingTitle').textContent='正在生成 PPT 文件...';
                     const pr=await fetch('/api/create-ppt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slides_data:generatedSlidesData,template_id:selectedTemplate,color:selectedColor})});const pd=await pr.json();
                     if(pd.success){$('#progressBar').style.width='100%';$('#progressText').textContent='完成！';await sleep(300);showResult(generatedSlidesData,pd.download_url);saveToHistory(generatedSlidesData,pd.download_url);showToast('生成成功！','success')}else{showToast(pd.error||'PPT生成失败','error')}
                 }else if(ev.type==='error'){showToast('AI错误: '+ev.error,'error')}
@@ -205,17 +209,30 @@ function downloadFile(content,filename,type){const blob=new Blob([content],{type
 // ============================================
 // 11. Slide Preview Modal
 // ============================================
-function openSlideModal(i){if(!generatedSlidesData)return;currentSlideIndex=i;renderSlideDetail();$('#modalSlidePreview').style.display='flex'}
+function openSlideModal(i){
+    if(!generatedSlidesData||!generatedSlidesData.slides||!generatedSlidesData.slides.length)return;
+    // 边界检查
+    const total=generatedSlidesData.slides.length+2;
+    if(i<0||i>=total)return;
+    currentSlideIndex=i;
+    renderSlideDetail();
+    $('#modalSlidePreview').style.display='flex'
+}
 function closeSlideModal(){$('#modalSlidePreview').style.display='none'}
-function renderSlideDetail(){const slides=generatedSlidesData.slides,total=slides.length+2,idx=currentSlideIndex;
+function renderSlideDetail(){
+    if(!generatedSlidesData||!generatedSlidesData.slides)return;
+    const slides=generatedSlidesData.slides,total=slides.length+2,idx=currentSlideIndex;
+    if(idx<0||idx>=total)return;
     $('#slideModalPage').textContent=`${idx+1} / ${total}`;$('#btnPrevSlide').disabled=idx===0;$('#btnNextSlide').disabled=idx===total-1;$('#btnPrevSlide').style.opacity=idx===0?0.4:1;$('#btnNextSlide').style.opacity=idx===total-1?0.4:1;
     if(idx===0){$('#slideModalTitle').textContent='标题页';$('#slideModalBody').innerHTML=`<div class="detail-slide"><div class="detail-slide-header" style="justify-content:center;flex-direction:column;gap:8px;padding:40px"><div class="detail-slide-title" style="font-size:28px">${esc(generatedSlidesData.title)}</div><div style="opacity:0.7">共 ${slides.length} 页</div></div></div>`;return}
     if(idx===total-1){$('#slideModalTitle').textContent='结束页';$('#slideModalBody').innerHTML=`<div class="detail-slide"><div class="detail-slide-header" style="justify-content:center;flex-direction:column;gap:8px;padding:40px"><div class="detail-slide-title" style="font-size:32px">谢谢</div><div style="opacity:0.7">THANK YOU</div></div></div>`;return}
-    const s=slides[idx-1];$('#slideModalTitle').textContent=`第 ${idx} 页 · ${s.title}`;
+    const s=slides[idx-1];if(!s)return;
+    $('#slideModalTitle').textContent=`第 ${idx} 页 · ${s.title||''}`;
     const pts=(s.content||[]).map(p=>`<div class="detail-point"><div class="detail-point-icon">${POINT_SVG}</div><div class="detail-point-text">${esc(p)}</div></div>`).join('');
     const notes=s.notes?`<div class="detail-notes"><div class="detail-notes-label">📝 备注</div><div class="detail-notes-text">${esc(s.notes)}</div></div>`:'';
     const actions=`<div class="detail-actions"><button class="btn btn-secondary" onclick="aiExpandSlide(${idx-1});closeSlideModal()" style="padding:6px 12px;font-size:13px">🤖 AI扩展</button><button class="btn btn-secondary" onclick="aiSimplifySlide(${idx-1});closeSlideModal()" style="padding:6px 12px;font-size:13px">✂️ AI精简</button></div>`;
-    $('#slideModalBody').innerHTML=`<div class="detail-slide"><div class="detail-slide-header"><div class="detail-slide-num">${idx}</div><div class="detail-slide-title">${esc(s.title)}</div></div><div class="detail-slide-body"><div class="detail-points">${pts}</div>${notes}${actions}</div></div>`}
+    $('#slideModalBody').innerHTML=`<div class="detail-slide"><div class="detail-slide-header"><div class="detail-slide-num">${idx}</div><div class="detail-slide-title">${esc(s.title||'')}</div></div><div class="detail-slide-body"><div class="detail-points">${pts}</div>${notes}${actions}</div></div>`
+}
 function prevSlide(){if(currentSlideIndex>0){currentSlideIndex--;renderSlideDetail()}}
 function nextSlide(){const t=generatedSlidesData?generatedSlidesData.slides.length+2:0;if(currentSlideIndex<t-1){currentSlideIndex++;renderSlideDetail()}}
 function bindSlideClickEvents(){$$('.slide-preview').forEach((c,i)=>{c.onclick=()=>openSlideModal(i)})}

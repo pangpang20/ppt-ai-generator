@@ -30,6 +30,10 @@ logger = logging.getLogger("ppt_gen")
 
 app = Flask(__name__)
 
+# 强制所有响应使用 UTF-8 编码
+app.config['JSON_AS_ASCII'] = False
+app.config['JSONIFY_MIMETYPE'] = 'application/json; charset=utf-8'
+
 
 def call_mimo_ai(system_prompt, user_prompt):
     """
@@ -208,6 +212,15 @@ def fallback_parse(content):
         ]
 
     return {"title": title, "slides": slides}
+
+
+@app.after_request
+def after_request(response):
+    """确保所有响应都有正确的编码"""
+    if response.content_type and 'charset' not in response.content_type:
+        if 'text/' in response.content_type or 'application/json' in response.content_type:
+            response.headers['Content-Type'] = response.content_type + '; charset=utf-8'
+    return response
 
 
 @app.route("/")
@@ -556,11 +569,12 @@ def generate_stream():
 
     return Response(
         stream_with_context(generate()),
-        mimetype="text/event-stream",
+        mimetype="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
+            "Content-Type": "text/event-stream; charset=utf-8",
         },
     )
 

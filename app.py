@@ -511,7 +511,11 @@ def generate_stream():
                         break
                     try:
                         chunk = json.loads(data_str)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choices = chunk.get("choices", [])
+                        if not choices:
+                            logger.debug(f"[流式生成] 空choices, 跳过: {data_str[:100]}")
+                            continue
+                        delta = choices[0].get("delta", {})
                         content = delta.get("content", "")
                         if content:
                             full_content += content
